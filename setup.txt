@@ -1,0 +1,6 @@
+py -3.10 -m venv mediapipe_env
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process (if needed)
+python -m pip install --upgrade pip
+pip install mediapipe opencv-python numpy pyautogui
+
+curl -o gesture_recognizer.task https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task
