@@ -19,6 +19,7 @@ import time
 
 import cv2
 import mediapipe as mp
+import pyautogui as pag
 
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -27,11 +28,23 @@ mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 
+# Get screen dimensions (for mapping hand coordinates to screen)
+screen_width, screen_height = pag.size()
+
 
 # Global variables to calculate FPS
 COUNTER, FPS = 0, 0
 START_TIME = time.time()
 
+def calc_fingerTipDistance(coords, frame_width, frame_height,current_frame):
+      """Calculate the distance between two fingertips."""
+      
+      finger1 = coords[0]
+      finger2 = coords[1]
+      pt1 = (int(finger1[0] * frame_width), int(finger1[1] * frame_height))
+      pt2 = (int(finger2[0] * frame_width), int(finger2[1] * frame_height))
+      cv2.line(current_frame, pt1,pt2,(0, 255, 0), 2)
+      return ((finger1[0] - finger2[0]) ** 2 + (finger1[1] - finger2[1]) ** 2) ** 0.5
 
 def run(model: str, num_hands: int,
         min_hand_detection_confidence: float,
@@ -73,16 +86,6 @@ def run(model: str, num_hands: int,
 
   recognition_frame = None
   recognition_result_list = []
-
-  def calc_fingerTipDistance(coords):
-      """Calculate the distance between two fingertips."""
-      print(cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-      finger1 = coords[0]
-      finger2 = coords[1]
-      pt1 = (int(finger1[0] * frame_width), int(finger1[1] * frame_height))
-      pt2 = (int(finger2[0] * frame_width), int(finger2[1] * frame_height))
-      cv2.line(current_frame, pt1,pt2,(0, 255, 0), 2)
-      return ((finger1[0] - finger2[0]) ** 2 + (finger1[1] - finger2[1]) ** 2) ** 0.5
 
   def save_result(result: vision.GestureRecognizerResult,
                   unused_output_image: mp.Image, timestamp_ms: int):
@@ -135,20 +138,39 @@ def run(model: str, num_hands: int,
       #check if both hands are detected
       if len(recognition_result_list[0].hand_landmarks)==2:
         # Calculate the distance between the two fingertips
+        index_finger_tip_1 = recognition_result_list[0].hand_landmarks[0][8]
+        index_finger_tip_2 = recognition_result_list[0].hand_landmarks[1][8]
         coords = [
-            (recognition_result_list[0].hand_landmarks[0][8].x,
-             recognition_result_list[0].hand_landmarks[0][8].y),
-            (recognition_result_list[0].hand_landmarks[1][8].x,
-             recognition_result_list[0].hand_landmarks[1][8].y)
+            (index_finger_tip_1.x, index_finger_tip_1.y),
+            (index_finger_tip_2.x, index_finger_tip_2.y)
         ]
-        distance = calc_fingerTipDistance(coords)
+        distance = calc_fingerTipDistance(coords,frame_width, frame_height,current_frame)
         print(f"Distance between fingertips: {distance:.2f}")
+
+
+      if len(recognition_result_list[0].hand_landmarks)==1:
+        # Convert normalized coords to screen position
+        index_tip = recognition_result_list[0].hand_landmarks[0][8]
+        mouse_x = int(index_tip.x * screen_width)
+        mouse_y = int(index_tip.y * screen_height)
+              
+        # Move mouse (inverted Y-axis since screen starts from top)
+        pag.moveTo(mouse_x, mouse_y, duration=0.1)
+              
+        # Click if thumb and index finger are close (pinch gesture)
+        thumb_tip = recognition_result_list[0].hand_landmarks[0][4]
+        distance = ((index_tip.x - thumb_tip.x)**2 + (index_tip.y - thumb_tip.y)**2)**0.5
+              
+        if distance < 0.03:  # Adjust threshold as needed
+            pag.click()
+            print("Click!")
+
+
+
 
       # Draw landmarks and write the text for each hand.
       for hand_index, hand_landmarks in enumerate(
           recognition_result_list[0].hand_landmarks):
-        
-        
 
         # Calculate the bounding box of the hand
         x_min = min([landmark.x for landmark in hand_landmarks])
