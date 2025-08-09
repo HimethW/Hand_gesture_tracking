@@ -74,6 +74,16 @@ def run(model: str, num_hands: int,
   recognition_frame = None
   recognition_result_list = []
 
+  def calc_fingerTipDistance(coords):
+      """Calculate the distance between two fingertips."""
+      print(cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+      finger1 = coords[0]
+      finger2 = coords[1]
+      pt1 = (int(finger1[0] * frame_width), int(finger1[1] * frame_height))
+      pt2 = (int(finger2[0] * frame_width), int(finger2[1] * frame_height))
+      cv2.line(current_frame, pt1,pt2,(0, 255, 0), 2)
+      return ((finger1[0] - finger2[0]) ** 2 + (finger1[1] - finger2[1]) ** 2) ** 0.5
+
   def save_result(result: vision.GestureRecognizerResult,
                   unused_output_image: mp.Image, timestamp_ms: int):
       global FPS, COUNTER, START_TIME
@@ -122,13 +132,29 @@ def run(model: str, num_hands: int,
                 font_size, text_color, font_thickness, cv2.LINE_AA)
 
     if recognition_result_list:
+      #check if both hands are detected
+      if len(recognition_result_list[0].hand_landmarks)==2:
+        # Calculate the distance between the two fingertips
+        coords = [
+            (recognition_result_list[0].hand_landmarks[0][8].x,
+             recognition_result_list[0].hand_landmarks[0][8].y),
+            (recognition_result_list[0].hand_landmarks[1][8].x,
+             recognition_result_list[0].hand_landmarks[1][8].y)
+        ]
+        distance = calc_fingerTipDistance(coords)
+        print(f"Distance between fingertips: {distance:.2f}")
+
       # Draw landmarks and write the text for each hand.
       for hand_index, hand_landmarks in enumerate(
           recognition_result_list[0].hand_landmarks):
+        
+        
+
         # Calculate the bounding box of the hand
         x_min = min([landmark.x for landmark in hand_landmarks])
         y_min = min([landmark.y for landmark in hand_landmarks])
         y_max = max([landmark.y for landmark in hand_landmarks])
+          
 
         # Convert normalized coordinates to pixel values
         frame_height, frame_width = current_frame.shape[:2]
@@ -262,12 +288,12 @@ def main():
       '--frameWidth',
       help='Width of frame to capture from camera.',
       required=False,
-      default=640)
+      default=640*2)
   parser.add_argument(
       '--frameHeight',
       help='Height of frame to capture from camera.',
       required=False,
-      default=480)
+      default=480*2)
   args = parser.parse_args()
 
   run(args.model, int(args.numHands), args.minHandDetectionConfidence,
